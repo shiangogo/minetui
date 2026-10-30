@@ -94,6 +94,12 @@ func (m Model) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.chord(m.cur.Row, m.cur.Col)
 	case "f", "m":
 		m.flag(m.cur.Row, m.cur.Col)
+	case "+", "=":
+		m.zoomIn()
+	case "-":
+		m.zoomOut()
+	case "z":
+		m.resetZoom()
 
 	// ── 遊戲 ──
 	case ":":
@@ -324,6 +330,36 @@ func (m Model) execCommand(line string) (tea.Model, tea.Cmd) {
 	case "help", "h":
 		m.showHelp = !m.showHelp
 		return m, nil
+	case "zoom", "scale":
+		if len(fields) == 1 {
+			cw, ch := m.cellSize()
+			mode := "自動"
+			if m.scale > 0 {
+				mode = fmt.Sprintf("手動 %dx", m.scale)
+			}
+			m.setMsg(msgInfo, fmt.Sprintf("目前縮放：%s（單元格 %d×%d，按 + / - 調整，z 重設為自動）", mode, cw, ch))
+			return m, nil
+		}
+		switch strings.ToLower(fields[1]) {
+		case "auto", "0", "reset", "a":
+			m.resetZoom()
+		case "1", "1x":
+			m.scale = 1
+			m.setMsg(msgInfo, "畫面縮放設為 1x")
+		case "2", "2x":
+			m.scale = 2
+			m.setMsg(msgInfo, "畫面縮放設為 2x")
+		case "3", "3x":
+			m.scale = 3
+			m.setMsg(msgInfo, "畫面縮放設為 3x")
+		case "+", "in":
+			m.zoomIn()
+		case "-", "out":
+			m.zoomOut()
+		default:
+			m.setMsg(msgError, "用法：:zoom [1|2|3|auto|+|-]")
+		}
+		return m, nil
 	case "custom", "c":
 		if len(fields) != 4 {
 			m.setMsg(msgError, "用法：:custom 寬 高 地雷數，例如 :custom 20 12 40")
@@ -413,4 +449,35 @@ func clamp(v, lo, hi int) int {
 		return hi
 	}
 	return v
+}
+
+func (m *Model) zoomIn() {
+	curr := m.currentScale()
+	if curr >= 3 {
+		m.setMsg(msgInfo, "已達最大縮放比例 (3x)")
+		return
+	}
+	m.scale = curr + 1
+	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（按 - 縮小、z 重設為自動）", m.scale))
+}
+
+func (m *Model) zoomOut() {
+	curr := m.currentScale()
+	if curr <= 1 {
+		m.setMsg(msgInfo, "已達最小縮放比例 (1x)")
+		return
+	}
+	m.scale = curr - 1
+	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（按 + 放大、z 重設為自動）", m.scale))
+}
+
+func (m *Model) resetZoom() {
+	m.scale = 0
+	cw, ch := m.cellSize()
+	m.setMsg(msgInfo, fmt.Sprintf("已重設為自動縮放（目前：%d×%d 格）", cw, ch))
+}
+
+func (m Model) currentScale() int {
+	_, ch := m.cellSize()
+	return ch
 }

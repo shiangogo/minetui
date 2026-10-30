@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 const (
 	rowLabelWidth = 3  // 列號欄寬，如 "12 "
 	minLayoutW    = 60 // 狀態列等元件的最小寬度
-	chromeHeight  = 12 // 盤面以外的版面高度（標題、統計、進度條、狀態列…）
+	chromeHeight  = 13 // 盤面以外的版面高度（標題、統計、外框、進度條、狀態列、提示等）
 )
 
 func (m Model) viewGame() string {
@@ -24,12 +25,12 @@ func (m Model) viewGame() string {
 		return m.place(warn)
 	}
 
-	cw := m.cellWidth()
+	cw, ch := m.cellSize()
 	var inner string
 	if m.showHelp {
 		inner = m.renderHelp()
 	} else {
-		inner = m.renderBoard(cw)
+		inner = m.renderBoard(cw, ch)
 	}
 	box := boardBoxStyle.BorderForeground(m.accentColor()).Render(inner)
 
@@ -50,20 +51,79 @@ func (m Model) viewGame() string {
 	return m.place(content)
 }
 
-// cellWidth 依終端機寬度決定每格要用 3 欄（寬鬆）或 2 欄（緊湊）。
-func (m Model) cellWidth() int {
-	if m.width == 0 || rowLabelWidth+m.board.Width()*3+4 <= m.width {
-		return 3
+// cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
+func (m Model) cellSize() (cw, ch int) {
+	if m.board == nil {
+		return 3, 1
 	}
-	return 2
+
+	bw := m.board.Width()
+	bh := m.board.Height()
+
+	if m.width <= 0 || m.height <= 0 {
+		return 3, 1
+	}
+
+	availH := m.height - chromeHeight - 1
+	availW := m.width - (rowLabelWidth + 4 + 4) // 扣除列號(3)、框與內距(4)及安全邊距(4)
+
+	targetScale := m.scale
+	if targetScale <= 0 {
+		// 自動模式：依視窗空間由大到小選擇最合適的比例
+		switch {
+		case availH >= bh*3 && availW >= bw*7:
+			targetScale = 3
+		case availH >= bh*2 && availW >= bw*4:
+			targetScale = 2
+		default:
+			targetScale = 1
+		}
+	}
+
+	switch targetScale {
+	case 3:
+		ch = 3
+		switch {
+		case availW >= bw*8:
+			cw = 8
+		case availW >= bw*7:
+			cw = 7
+		default:
+			cw = 6
+		}
+	case 2:
+		ch = 2
+		switch {
+		case availW >= bw*6:
+			cw = 6
+		case availW >= bw*5:
+			cw = 5
+		default:
+			cw = 4
+		}
+	default: // 1x
+		ch = 1
+		switch {
+		case availW >= bw*5:
+			cw = 5
+		case availW >= bw*4:
+			cw = 4
+		case availW >= bw*3:
+			cw = 3
+		default:
+			cw = 2
+		}
+	}
+
+	return cw, ch
 }
 
 func (m Model) sizeWarning() (string, bool) {
-	if m.width == 0 || m.height == 0 {
+	if m.width == 0 || m.height == 0 || m.board == nil {
 		return "", false
 	}
 	needW := max(rowLabelWidth+m.board.Width()*2+4, minLayoutW)
-	needH := m.board.Height() + 3 + chromeHeight
+	needH := m.board.Height() + chromeHeight
 	if m.width >= needW && m.height >= needH {
 		return "", false
 	}
@@ -127,14 +187,15 @@ func (m Model) renderProgress(w int) string {
 	return label + "\n" + p.View()
 }
 
-// renderBoard 繪製含座標標籤的盤面。
-func (m Model) renderBoard(cw int) string {
+// renderBoard 繪製含座標標籤的棋盤，支援多行多欄自適應單元格。
+func (m Model) renderBoard(cw, ch int) string {
 	b := m.board
 	var sb strings.Builder
 
+	// 欄號標籤
 	sb.WriteString(strings.Repeat(" ", rowLabelWidth))
 	for c := 0; c < b.Width(); c++ {
-		active := c == m.cur.Col
+		active := (c == m.cur.Col)
 		style := labelStyle
 		if active {
 			style = labelActiveStyle
@@ -142,32 +203,52 @@ func (m Model) renderBoard(cw int) string {
 		sb.WriteString(style.Render(colLabel(c+1, cw, active)))
 	}
 
+	// 棋盤列
 	for r := 0; r < b.Height(); r++ {
-		sb.WriteByte('\n')
-		style := labelStyle
-		if r == m.cur.Row {
-			style = labelActiveStyle
-		}
-		sb.WriteString(style.Render(fmt.Sprintf("%2d ", r+1)))
-		for c := 0; c < b.Width(); c++ {
-			sb.WriteString(m.renderCell(r, c, cw))
+		isCurRow := (r == m.cur.Row)
+		for sub := 0; sub < ch; sub++ {
+			sb.WriteByte('\n')
+
+			// 列號標籤：1x 與 2x 在首行，3x 在中間行
+			if (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1) {
+				st := labelStyle
+				if isCurRow {
+					st = labelActiveStyle
+				}
+				sb.WriteString(st.Render(fmt.Sprintf("%2d ", r+1)))
+			} else {
+				sb.WriteString(strings.Repeat(" ", rowLabelWidth))
+			}
+
+			for c := 0; c < b.Width(); c++ {
+				sb.WriteString(m.renderCellSubLine(r, c, cw, ch, sub))
+			}
 		}
 	}
 	return sb.String()
 }
 
 func colLabel(n, cw int, active bool) string {
-	if cw >= 3 {
-		return fmt.Sprintf("%2d ", n)
+	if cw == 2 {
+		// 緊湊模式下兩位數會黏在一起，只標示 1、5 的倍數與游標所在行
+		if n == 1 || n%5 == 0 || active {
+			return fmt.Sprintf("%2d", n)
+		}
+		return "  "
 	}
-	// 緊湊模式下兩位數會黏在一起，只標示 1、5 的倍數與游標所在行
-	if n == 1 || n%5 == 0 || active {
-		return fmt.Sprintf("%2d", n)
-	}
-	return "  "
+	return padCenter(strconv.Itoa(n), cw)
 }
 
-func (m Model) renderCell(r, c, cw int) string {
+func (m Model) renderCellSubLine(r, c, cw, ch, sub int) string {
+	glyph, st := m.cellAppearance(r, c)
+	hasGlyph := (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1)
+	if hasGlyph {
+		return st.Render(padCenter(glyph, cw))
+	}
+	return st.Render(strings.Repeat(" ", cw))
+}
+
+func (m Model) cellAppearance(r, c int) (string, lipgloss.Style) {
 	b := m.board
 	cell := b.Cell(r, c)
 	parity := (r + c) % 2
@@ -213,17 +294,17 @@ func (m Model) renderCell(r, c, cw int) string {
 	if r == m.cur.Row && c == m.cur.Col {
 		st = st.Background(cursorBg).Foreground(cursorFg).Bold(true)
 	}
-	return st.Render(padCell(glyph, cw))
+	return glyph, st
 }
 
-func padCell(glyph string, cw int) string {
-	if glyph == "" {
-		glyph = " "
+func padCenter(s string, width int) string {
+	sw := lipgloss.Width(s)
+	if sw >= width {
+		return s
 	}
-	if cw >= 3 {
-		return " " + glyph + " "
-	}
-	return " " + glyph
+	left := (width - sw) / 2
+	right := width - sw - left
+	return strings.Repeat(" ", left) + s + strings.Repeat(" ", right)
 }
 
 func (m Model) renderStatusBar(w int) string {
@@ -235,7 +316,15 @@ func (m Model) renderStatusBar(w int) string {
 	} else {
 		mode = modeNormalStyle.Render("NORMAL")
 	}
-	left := mode + bar.Foreground(colSubtext).Render(" "+m.diff.Name)
+
+	scaleInfo := ""
+	if m.scale > 0 {
+		scaleInfo = bar.Foreground(colYellow).Render(fmt.Sprintf(" %dx", m.scale))
+	} else {
+		cw, ch := m.cellSize()
+		scaleInfo = bar.Foreground(colOverlay).Render(fmt.Sprintf(" %d×%d", cw, ch))
+	}
+	left := mode + bar.Foreground(colSubtext).Render(" "+m.diff.Name) + scaleInfo
 
 	pending := m.count
 	if m.pendingG {
@@ -259,7 +348,7 @@ func (m Model) renderCmdline(w int) string {
 		return infoStyle.Render(":"+m.cmdBuf) + cmdCursor.Render(" ")
 	}
 	if m.msg == "" {
-		return ""
+		return " " // 留出 1 行高度，避免跳出訊息時造成版面抖動
 	}
 	style := infoStyle
 	switch m.msgStyle {
@@ -277,9 +366,9 @@ func (m Model) renderHints(w int) string {
 	case m.showHelp:
 		pairs = [][2]string{{"?", "關閉說明"}, {"q", "離開"}}
 	case m.board.Over():
-		pairs = [][2]string{{"r", "再來一局"}, {"d", "換難度"}, {"?", "說明"}, {"q", "離開"}}
+		pairs = [][2]string{{"r", "再來一局"}, {"d", "換難度"}, {"+/-", "縮放"}, {"?", "說明"}, {"q", "離開"}}
 	default:
-		pairs = [][2]string{{"hjkl", "移動"}, {"space", "翻開"}, {"f", "插旗"}, {":", "跳轉"}, {"?", "說明"}}
+		pairs = [][2]string{{"hjkl", "移動"}, {"space", "翻開"}, {"f", "插旗"}, {":", "跳轉"}, {"+/-", "縮放"}, {"?", "說明"}}
 	}
 	return lipgloss.NewStyle().Width(w).Render(renderHints(pairs))
 }
@@ -301,6 +390,8 @@ var helpSections = []helpSection{
 		{"space / enter", "翻開；在數字格上即大面積翻開"},
 		{"c", "大面積翻開（周圍旗數 = 數字時）"},
 		{"f / m", "插旗 / 拔旗"},
+		{"+ / -", "手動放大 / 縮小畫面"},
+		{"z", "重設為自動縮放"},
 	}},
 	{"指令", [][2]string{
 		{":12 5", "跳到第 12 列、第 5 行"},
@@ -308,6 +399,7 @@ var helpSections = []helpSection{
 		{":12 5 f", "跳過去並插旗（o 翻開、c 大面積翻開）"},
 		{":easy :medium :hard", "切換難度"},
 		{":custom W H M", "自訂寬、高與地雷數"},
+		{":zoom [1-3|auto]", "設定畫面縮放倍率"},
 		{":r  :menu  :q", "重開 / 難度選單 / 離開"},
 	}},
 	{"其他", [][2]string{
@@ -317,18 +409,39 @@ var helpSections = []helpSection{
 }
 
 func (m Model) renderHelp() string {
-	keyCol := lipgloss.NewStyle().Width(22)
-	var sb strings.Builder
-	for i, sec := range helpSections {
-		if i > 0 {
-			sb.WriteString("\n")
-		}
+	renderSec := func(sec helpSection) string {
+		var sb strings.Builder
 		sb.WriteString(helpHeadStyle.Render(sec.title))
+		keyCol := lipgloss.NewStyle().Width(20)
 		for _, row := range sec.rows {
 			sb.WriteString("\n  ")
 			sb.WriteString(keyCol.Render(helpKeyStyle.Render(row[0])))
 			sb.WriteString(helpDescStyle.Render(row[1]))
 		}
+		return sb.String()
+	}
+
+	// 寬度足夠時以兩欄排版（節省縱向高度）
+	if m.width >= 78 {
+		left := lipgloss.JoinVertical(lipgloss.Left,
+			renderSec(helpSections[0]),
+			"",
+			renderSec(helpSections[1]),
+		)
+		right := lipgloss.JoinVertical(lipgloss.Left,
+			renderSec(helpSections[2]),
+			"",
+			renderSec(helpSections[3]),
+		)
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, "    ", right)
+	}
+
+	var sb strings.Builder
+	for i, sec := range helpSections {
+		if i > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString(renderSec(sec))
 	}
 	return sb.String()
 }
