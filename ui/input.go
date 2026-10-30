@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/shiangogo/minesweeper/game"
+	"github.com/shiangogo/minetui/game"
 )
 
 const maxHistory = 50

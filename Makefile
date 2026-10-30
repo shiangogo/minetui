@@ -2,10 +2,10 @@
 # 自動偵測：本機有 go 則直接使用本地工具鏈（極速），沒有則自動退回使用 Docker 容器。
 # 亦可手動指定 USE_DOCKER=1 強制使用容器編譯。
 
-BINARY       ?= bin/minesweeper
+BINARY       ?= bin/minetui
 GO_IMAGE     ?= golang:1.25-alpine
-MOD_VOLUME   := minesweeper-gomod
-BUILD_VOLUME := minesweeper-gobuild
+MOD_VOLUME   := minetui-gomod
+BUILD_VOLUME := minetui-gobuild
 
 # 自動判斷本機是否存在 go
 HAS_LOCAL_GO := $(shell which go 2>/dev/null)

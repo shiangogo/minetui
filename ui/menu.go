@@ -131,7 +131,7 @@ func (m Model) customDifficulty() (Difficulty, error) {
 func (m Model) viewMenu() string {
 	var b strings.Builder
 
-	b.WriteString(titleStyle.Render("✹  M I N E S W E E P E R  ✹"))
+	b.WriteString(titleStyle.Render("✹  M I N E T U I  ✹"))
 	b.WriteString("\n\n")
 	b.WriteString(subtitleStyle.Render("選擇難度"))
 	b.WriteString("\n\n")
