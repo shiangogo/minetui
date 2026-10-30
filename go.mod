@@ -1,4 +1,4 @@
-module github.com/shiangogo/minesweeper
+module github.com/shiangogo/minetui
 
 go 1.25
 
