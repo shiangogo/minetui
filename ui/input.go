@@ -478,6 +478,16 @@ func (m *Model) resetZoom() {
 }
 
 func (m Model) currentScale() int {
-	_, ch := m.cellSize()
-	return ch
+	if m.scale > 0 {
+		return m.scale
+	}
+	cw, ch := m.cellSize()
+	switch {
+	case ch >= 3 && cw >= 7:
+		return 3
+	case ch >= 3:
+		return 2
+	default:
+		return 1
+	}
 }

@@ -15,6 +15,7 @@ const (
 	rowLabelWidth = 3  // 列號欄寬，如 "12 "
 	minLayoutW    = 60 // 狀態列等元件的最小寬度
 	chromeHeight  = 13 // 盤面以外的版面高度（標題、統計、外框、進度條、狀態列、提示等）
+	sidePanelW    = 34 // 寬螢幕側欄 (32) 加上間距 (2) 所需寬度
 )
 
 func (m Model) viewGame() string {
@@ -26,6 +27,30 @@ func (m Model) viewGame() string {
 	}
 
 	cw, ch := m.cellSize()
+	bh := m.board.Height()
+
+	// 當啟用 3 行高單元格（確保數字垂直正中），但視窗高度不足以同時堆疊完整上下資訊列時，
+	// 自動切換為寬螢幕「左側資訊欄 + 右側緊湊棋盤」或上下極簡版面，讓 50 行高的全螢幕也能容納 16 列高的中級/高級大格子。
+	if !m.showHelp && m.height > 0 && m.height < bh*ch+chromeHeight && ch == 3 {
+		box := m.renderBoardBoxCompact(cw, ch)
+		boxW := lipgloss.Width(box)
+		if m.width >= boxW+sidePanelW {
+			side := m.renderSidePanel(sidePanelW - 2)
+			return m.place(lipgloss.JoinHorizontal(lipgloss.Center, side, "  ", box))
+		}
+		if m.height >= bh*ch+4 {
+			w := max(boxW, minLayoutW)
+			box = lipgloss.PlaceHorizontal(w, lipgloss.Center, box)
+			top := m.renderStats(w)
+			bottom := m.renderStatusBar(w)
+			if m.mode == modeCommand || m.msg != "" {
+				bottom = m.renderCmdline(w)
+			}
+			return m.place(lipgloss.JoinVertical(lipgloss.Left, top, box, bottom))
+		}
+		return m.place(box)
+	}
+
 	var inner string
 	if m.showHelp {
 		inner = m.renderHelp()
@@ -52,29 +77,26 @@ func (m Model) viewGame() string {
 }
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
-// 維持視覺正方形比例 cw = 2 * ch（1x: 2×1, 2x: 4×2, 3x: 6×3），避免寬度被過度拉伸成扁長方形。
+// 為確保半形數字 (寬 1、高 1) 永遠在格子正中間（上下左右皆對稱留白），
+// 單元格採用「奇數寬 × 奇數高」的視覺正方形比例：1x (3×1)、2x (5×3)、3x (7×3)。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
-		return 2, 1
+		return 3, 1
 	}
 
 	bw := m.board.Width()
-	bh := m.board.Height()
 
 	if m.width <= 0 || m.height <= 0 {
-		return 2, 1
+		return 3, 1
 	}
-
-	availH := m.height - chromeHeight - 1
-	availW := m.width - (rowLabelWidth + 4 + 4) // 扣除列號(3)、框與內距(4)及安全邊距(4)
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：依視窗空間由大到小選擇最合適的比例（維持正方形 cw = 2 * ch）
+		// 自動模式：依視窗空間由大到小選擇最合適的奇數正方形比例
 		switch {
-		case availH >= bh*3 && availW >= bw*6:
+		case m.canFit(7, 3):
 			targetScale = 3
-		case availH >= bh*2 && availW >= bw*4:
+		case m.canFit(5, 3):
 			targetScale = 2
 		default:
 			targetScale = 1
@@ -83,12 +105,31 @@ func (m Model) cellSize() (cw, ch int) {
 
 	switch targetScale {
 	case 3:
-		return 6, 3
+		return 7, 3
 	case 2:
-		return 4, 2
+		return 5, 3
 	default: // 1x
-		return 2, 1
+		if m.width < bw*3+rowLabelWidth+4 {
+			return 2, 1
+		}
+		return 3, 1
 	}
+}
+
+func (m Model) canFit(cw, ch int) bool {
+	bw := m.board.Width()
+	bh := m.board.Height()
+	boxW := bw*cw + rowLabelWidth + 4
+	if m.height >= bh*ch+chromeHeight && m.width >= boxW {
+		return true
+	}
+	if m.height >= bh*ch+4 && m.width >= boxW {
+		return true
+	}
+	if m.height >= bh*ch+2 && m.width >= boxW+sidePanelW {
+		return true
+	}
+	return false
 }
 
 func (m Model) sizeWarning() (string, bool) {
@@ -160,6 +201,143 @@ func (m Model) renderProgress(w int) string {
 	return label + "\n" + p.View()
 }
 
+// renderSidePanel 為寬螢幕模式繪製左側資訊欄（整合標題、地雷數、時間、進度條、狀態列與快捷鍵）。
+func (m Model) renderSidePanel(w int) string {
+	b := m.board
+	title := titleStyle.Background(m.accentColor()).Render("✹ MINETUI")
+
+	var state string
+	switch b.Status() {
+	case game.Ready:
+		state = chipKeyStyle.Background(colOverlay).Render("準備")
+	case game.Playing:
+		state = chipKeyStyle.Background(colYellow).Render("進行中")
+	case game.Won:
+		state = chipKeyStyle.Background(colGreen).Render("勝利")
+	case game.Lost:
+		state = chipKeyStyle.Background(colRed).Render("失敗")
+	}
+
+	topLine := spread(w, title, state)
+	diffLine := subtitleStyle.Render(m.diff.Summary())
+
+	mines := chip("⚑ 地雷", fmt.Sprintf("%3d", b.RemainingMines()), colRed)
+	timer := chip("時間", formatDuration(m.elapsedTime()), colBlue)
+	statsLine := spread(w, mines, timer)
+
+	var pairs [][2]string
+	if b.Over() {
+		pairs = [][2]string{{"r", "再來一局"}, {"d", "換難度"}, {"+/-", "縮放"}, {"?", "說明"}, {"q", "離開"}}
+	} else {
+		pairs = [][2]string{{"hjkl", "移動"}, {"space", "翻開"}, {"f", "插旗"}, {":", "跳轉"}, {"+/-", "縮放"}, {"?", "說明"}}
+	}
+	var hintLines []string
+	for i := 0; i < len(pairs); i += 2 {
+		end := min(i+2, len(pairs))
+		hintLines = append(hintLines, renderHints(pairs[i:end]))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		topLine,
+		diffLine,
+		"",
+		statsLine,
+		"",
+		m.renderProgress(w),
+		"",
+		m.renderStatusBar(w),
+		m.renderCmdline(w),
+		"",
+		strings.Join(hintLines, "\n"),
+	)
+}
+
+// renderBoardBoxCompact 繪製高度緊湊的棋盤外框，將欄號直接嵌入上邊框（使 16×3=48 行的棋盤加框後僅佔 50 行）。
+func (m Model) renderBoardBoxCompact(cw, ch int) string {
+	b := m.board
+	bw := b.Width()
+	bh := b.Height()
+
+	if m.height >= bh*ch+3 {
+		return boardBoxStyle.BorderForeground(m.accentColor()).Render(m.renderBoard(cw, ch))
+	}
+
+	bStyle := lipgloss.NewStyle().Foreground(m.accentColor())
+	vBar := bStyle.Render("│")
+
+	var lines []string
+
+	// 當高度 >= bh*ch+2（例如 50 行），將欄號嵌入上邊框 ╭──── 1 ──── 2 ... ─╮
+	if m.height >= bh*ch+2 {
+		var top strings.Builder
+		top.WriteString(bStyle.Render("╭" + strings.Repeat("─", 1+rowLabelWidth)))
+		for c := 0; c < bw; c++ {
+			active := (c == m.cur.Col)
+			numStr := strconv.Itoa(c + 1)
+			token := " " + numStr + " "
+			tw := lipgloss.Width(token)
+			leftD := (cw - tw) / 2
+			rightD := cw - tw - leftD
+			if leftD < 0 {
+				leftD = 0
+				rightD = 0
+			}
+			st := labelStyle
+			if active {
+				st = labelActiveStyle
+			}
+			top.WriteString(bStyle.Render(strings.Repeat("─", leftD)))
+			top.WriteString(st.Render(token))
+			top.WriteString(bStyle.Render(strings.Repeat("─", rightD)))
+		}
+		top.WriteString(bStyle.Render("─╮"))
+		lines = append(lines, top.String())
+	} else if m.height == bh*ch+1 {
+		// 高度恰為 bh*ch+1（49 行）：保留欄號列，省略上下邊框線
+		var hdr strings.Builder
+		hdr.WriteString(vBar + " " + strings.Repeat(" ", rowLabelWidth))
+		for c := 0; c < bw; c++ {
+			active := (c == m.cur.Col)
+			st := labelStyle
+			if active {
+				st = labelActiveStyle
+			}
+			hdr.WriteString(st.Render(colLabel(c+1, cw, active)))
+		}
+		hdr.WriteString(" " + vBar)
+		lines = append(lines, hdr.String())
+	}
+
+	for r := 0; r < bh; r++ {
+		isCurRow := (r == m.cur.Row)
+		for sub := 0; sub < ch; sub++ {
+			var rowSb strings.Builder
+			rowSb.WriteString(vBar + " ")
+			if sub == ch/2 {
+				st := labelStyle
+				if isCurRow {
+					st = labelActiveStyle
+				}
+				rowSb.WriteString(st.Render(fmt.Sprintf("%2d ", r+1)))
+			} else {
+				rowSb.WriteString(strings.Repeat(" ", rowLabelWidth))
+			}
+			for c := 0; c < bw; c++ {
+				rowSb.WriteString(m.renderCellSubLine(r, c, cw, ch, sub))
+			}
+			rowSb.WriteString(" " + vBar)
+			lines = append(lines, rowSb.String())
+		}
+	}
+
+	if m.height >= bh*ch+2 {
+		innerW := 1 + rowLabelWidth + bw*cw + 1
+		lines = append(lines, bStyle.Render("╰"+strings.Repeat("─", innerW)+"╯"))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
 // renderBoard 繪製含座標標籤的棋盤，支援多行多欄自適應單元格。
 func (m Model) renderBoard(cw, ch int) string {
 	b := m.board
@@ -182,8 +360,8 @@ func (m Model) renderBoard(cw, ch int) string {
 		for sub := 0; sub < ch; sub++ {
 			sb.WriteByte('\n')
 
-			// 列號標籤：1x 與 2x 在首行，3x 在中間行
-			if (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1) {
+			// 列號標籤：固定置於單元格垂直正中間行 (sub == ch/2)
+			if sub == ch/2 {
 				st := labelStyle
 				if isCurRow {
 					st = labelActiveStyle
@@ -214,8 +392,7 @@ func colLabel(n, cw int, active bool) string {
 
 func (m Model) renderCellSubLine(r, c, cw, ch, sub int) string {
 	glyph, st := m.cellAppearance(r, c)
-	hasGlyph := (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1)
-	if hasGlyph {
+	if sub == ch/2 {
 		return st.Render(padCenter(glyph, cw))
 	}
 	return st.Render(strings.Repeat(" ", cw))

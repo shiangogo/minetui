@@ -5,7 +5,7 @@ Output assets/demo.gif
 
 Set FontSize 15
 Set Width 1100
-Set Height 720
+Set Height 860
 Set Padding 20
 Set Theme "Catppuccin Mocha"
 Set WindowBar Colorful
@@ -48,13 +48,11 @@ Sleep 600ms
 Enter
 Sleep 800ms
 
-# 示範畫面縮放 (+)
-Type "+"
+# 示範畫面縮放 (- / + / z)
+Type "-"
 Sleep 1s
-Type "+"
+Type "-"
 Sleep 1s
-
-# 重設為自動縮放 (z)
 Type "z"
 Sleep 800ms
 
