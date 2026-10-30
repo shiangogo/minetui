@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2] - 2026-10-30
+
+### Fixed
+
+- 修復 `make dist` 於 Linux 環境下 SHA-256 校驗指令之相容性 (`sha256sum` / `shasum`)
+- 自動化觸發 GitHub Actions 發布並生成 Release 頁面
+
 ## [0.2.1] - 2026-10-30
 
 ### Added

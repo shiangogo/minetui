@@ -7,7 +7,7 @@
   </p>
   <p align="center">
     <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat-square&logo=go" alt="Go Version" /></a>
-    <a href="https://github.com/shiangogo/minetui/releases"><img src="https://img.shields.io/badge/release-v0.2.1-89b4fa?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/shiangogo/minetui/releases"><img src="https://img.shields.io/badge/release-v0.2.2-89b4fa?style=flat-square" alt="Release" /></a>
     <a href="https://github.com/charmbracelet/bubbletea"><img src="https://img.shields.io/badge/built%20with-Bubble%20Tea-cba6f7?style=flat-square" alt="Bubble Tea" /></a>
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-a6e3a1?style=flat-square" alt="License" /></a>
   </p>
