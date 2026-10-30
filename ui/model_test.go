@@ -295,3 +295,53 @@ func TestManualZoomKeysAndCommands(t *testing.T) {
 		t.Fatalf(":zoom auto -> scale = %d, want 0", m.scale)
 	}
 }
+
+func TestSquareCellsAndCenteredNumbers(t *testing.T) {
+	m := newEasy(t)
+
+	// 驗證各 scale 單元格皆為正方形比例（cw == 2 * ch，因終端機字元高約為寬之 2 倍）
+	for scale := 1; scale <= 3; scale++ {
+		m.scale = scale
+		cw, ch := m.cellSize()
+		if cw != 2*ch {
+			t.Fatalf("scale %d: cw=%d, ch=%d; expected square proportion cw == 2 * ch", scale, cw, ch)
+		}
+	}
+
+	// 驗證 padCenter 配合全形數字可精準對稱置中
+	tests := []struct {
+		cw   int
+		want string
+	}{
+		{2, "１"},
+		{4, " １ "},
+		{6, "  １  "},
+	}
+	for _, tc := range tests {
+		got := padCenter("１", tc.cw)
+		if got != tc.want {
+			t.Fatalf("padCenter('１', %d) = %q, want %q", tc.cw, got, tc.want)
+		}
+	}
+
+	// 驗證翻開帶有數字的格子時，呈現對應全形置中字元
+	m.scale = 1
+	m = press(t, m, " ") // 第一步保證開出安全區
+	foundNumber := false
+	for r := 0; r < m.board.Height(); r++ {
+		for c := 0; c < m.board.Width(); c++ {
+			cell := m.board.Cell(r, c)
+			if cell.State == game.Revealed && cell.Adjacent > 0 {
+				glyph, _ := m.cellAppearance(r, c)
+				expected := numberGlyphs[cell.Adjacent]
+				if glyph != expected {
+					t.Fatalf("cell (%d,%d) glyph = %q, want %q", r, c, glyph, expected)
+				}
+				foundNumber = true
+			}
+		}
+	}
+	if !foundNumber {
+		t.Fatalf("expected at least one numbered cell revealed")
+	}
+}
