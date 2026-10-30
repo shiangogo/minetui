@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0] - 2026-10-30
+
+### Changed
+
+- 專案正式命名為 **`minetui`**
+- Go 模組更名為 `github.com/shiangogo/minetui`
+- 編譯輸出可執行檔更名為 `bin/minetui`
+- 更新介面標頭與選單標題為 `✹ MINETUI`
+
+### Added
+
+- 新增 Charm [VHS](https://github.com/charmbracelet/vhs) 錄製腳本 `demo.tape`，支援一鍵產生 Catppuccin Mocha 主題的高畫質展示動圖 `assets/demo.gif`
+- 全新高質感開源專案 README（含動態展示圖示、狀態徽章、完整 Vim 鍵位指南、快速安裝說明）
+- 新增 MIT License
+
 ## [0.1.3] - 2026-10-30
 
 ### Added

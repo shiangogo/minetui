@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/shiangogo/minesweeper/game"
+	"github.com/shiangogo/minetui/game"
 )
 
 const (
@@ -147,7 +147,7 @@ func (m Model) accentColor() lipgloss.Color {
 }
 
 func (m Model) renderHeader(w int) string {
-	left := titleStyle.Background(m.accentColor()).Render("✹ MINESWEEPER")
+	left := titleStyle.Background(m.accentColor()).Render("✹ MINETUI")
 	right := subtitleStyle.Render(m.diff.Summary())
 	return spread(w, left, right)
 }
