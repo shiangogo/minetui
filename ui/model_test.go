@@ -295,3 +295,16 @@ func TestManualZoomKeysAndCommands(t *testing.T) {
 		t.Fatalf(":zoom auto -> scale = %d, want 0", m.scale)
 	}
 }
+
+func TestSquareCellProportions(t *testing.T) {
+	m := newEasy(t)
+
+	// 驗證各 scale 單元格比例皆維持視覺正方形（cw == 2 * ch）
+	for scale := 1; scale <= 3; scale++ {
+		m.scale = scale
+		cw, ch := m.cellSize()
+		if cw != 2*ch {
+			t.Fatalf("scale %d: cw=%d, ch=%d; expected square proportion cw == 2 * ch", scale, cw, ch)
+		}
+	}
+}

@@ -52,16 +52,17 @@ func (m Model) viewGame() string {
 }
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
+// 維持視覺正方形比例 cw = 2 * ch（1x: 2×1, 2x: 4×2, 3x: 6×3），避免寬度被過度拉伸成扁長方形。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
-		return 3, 1
+		return 2, 1
 	}
 
 	bw := m.board.Width()
 	bh := m.board.Height()
 
 	if m.width <= 0 || m.height <= 0 {
-		return 3, 1
+		return 2, 1
 	}
 
 	availH := m.height - chromeHeight - 1
@@ -69,9 +70,9 @@ func (m Model) cellSize() (cw, ch int) {
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：依視窗空間由大到小選擇最合適的比例
+		// 自動模式：依視窗空間由大到小選擇最合適的比例（維持正方形 cw = 2 * ch）
 		switch {
-		case availH >= bh*3 && availW >= bw*7:
+		case availH >= bh*3 && availW >= bw*6:
 			targetScale = 3
 		case availH >= bh*2 && availW >= bw*4:
 			targetScale = 2
@@ -82,40 +83,12 @@ func (m Model) cellSize() (cw, ch int) {
 
 	switch targetScale {
 	case 3:
-		ch = 3
-		switch {
-		case availW >= bw*8:
-			cw = 8
-		case availW >= bw*7:
-			cw = 7
-		default:
-			cw = 6
-		}
+		return 6, 3
 	case 2:
-		ch = 2
-		switch {
-		case availW >= bw*6:
-			cw = 6
-		case availW >= bw*5:
-			cw = 5
-		default:
-			cw = 4
-		}
+		return 4, 2
 	default: // 1x
-		ch = 1
-		switch {
-		case availW >= bw*5:
-			cw = 5
-		case availW >= bw*4:
-			cw = 4
-		case availW >= bw*3:
-			cw = 3
-		default:
-			cw = 2
-		}
+		return 2, 1
 	}
-
-	return cw, ch
 }
 
 func (m Model) sizeWarning() (string, bool) {
