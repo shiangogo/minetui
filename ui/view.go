@@ -53,6 +53,8 @@ func (m Model) viewGame() string {
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
 // 終端機字元寬高比約為 1:2，故維持 cw = 2 * ch 以確保格子視覺上為正方形。
+// 單元格高度必須為奇數（1x: 2×1, 2x: 6×3, 3x: 10×5），使數字 glyph 具備唯一且對稱的中心行（sub == ch/2），
+// 徹底避免偶數行高造成文字偏向頂部或底部。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
 		return 2, 1
@@ -70,11 +72,11 @@ func (m Model) cellSize() (cw, ch int) {
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：依視窗空間由大到小選擇最合適的比例（維持正方形 cw = 2 * ch）
+		// 自動模式：依視窗空間由大到小選擇最合適的比例（奇數行高，確保正方形且文字完美垂直置中）
 		switch {
-		case availH >= bh*3 && availW >= bw*6:
+		case availH >= bh*5 && availW >= bw*10:
 			targetScale = 3
-		case availH >= bh*2 && availW >= bw*4:
+		case availH >= bh*3 && availW >= bw*6:
 			targetScale = 2
 		default:
 			targetScale = 1
@@ -83,9 +85,9 @@ func (m Model) cellSize() (cw, ch int) {
 
 	switch targetScale {
 	case 3:
-		return 6, 3
+		return 10, 5
 	case 2:
-		return 4, 2
+		return 6, 3
 	default: // 1x
 		return 2, 1
 	}
@@ -182,8 +184,8 @@ func (m Model) renderBoard(cw, ch int) string {
 		for sub := 0; sub < ch; sub++ {
 			sb.WriteByte('\n')
 
-			// 列號標籤：1x 與 2x 在首行，3x 在中間行
-			if (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1) {
+			// 列號標籤置於單元格正中間行
+			if sub == ch/2 {
 				st := labelStyle
 				if isCurRow {
 					st = labelActiveStyle
@@ -214,7 +216,7 @@ func colLabel(n, cw int, active bool) string {
 
 func (m Model) renderCellSubLine(r, c, cw, ch, sub int) string {
 	glyph, st := m.cellAppearance(r, c)
-	hasGlyph := (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1)
+	hasGlyph := (sub == ch/2)
 	if hasGlyph {
 		return st.Render(padCenter(glyph, cw))
 	}
