@@ -29,9 +29,9 @@ func (m Model) viewGame() string {
 	cw, ch := m.cellSize()
 	bh := m.board.Height()
 
-	// 當啟用多行高單元格（ch >= 3，確保數字垂直正中），但視窗高度不足以同時堆疊完整上下資訊列時，
-	// 自動切換為寬螢幕「左側資訊欄 + 右側緊湊棋盤」或嵌入式上下邊框版面，讓 50 行高的全螢幕也能容納中級/高級正方形大格子。
-	if !m.showHelp && m.height > 0 && m.height < bh*ch+chromeHeight && ch >= 3 {
+	// 當視窗高度不足以同時堆疊完整上下資訊列（chromeHeight = 13）時，
+	// 自動切換為寬螢幕「左側資訊欄 + 右側緊湊棋盤」或嵌入式上下邊框版面。
+	if !m.showHelp && m.height > 0 && m.height < bh*ch+chromeHeight && ch >= 2 {
 		box := m.renderBoardBoxCompact(cw, ch, false)
 		boxW := lipgloss.Width(box)
 		if m.width >= boxW+sidePanelW {
@@ -77,65 +77,63 @@ func (m Model) viewGame() string {
 }
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
-// 終端機字元寬高比約為 1:2，因此單元格必須滿足 cw = 2 * ch 才是視覺正方形；
-// 同時為確保數字永遠在垂直正中央（上下對稱留白），高度 ch 必須為奇數 (1, 3, 5)：
-// 1x = 2×1、2x = 6×3、3x = 10×5。
+// 終端機字元寬高比約為 1:2，因此所有縮放階層 s (1x~5x) 皆嚴格維持視覺正方形比例 cw = 2 * ch：
+// 1x = 2×1、2x = 4×2、3x = 6×3、4x = 8×4、5x = 10×5。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
 		return 2, 1
 	}
 
-	bw := m.board.Width()
-	bh := m.board.Height()
-
 	if m.width <= 0 || m.height <= 0 {
-		switch m.scale {
-		case 3:
-			return 10, 5
-		case 2:
-			return 6, 3
-		default:
-			return 2, 1
+		s := clamp(m.scale, 1, 5)
+		if m.scale <= 0 {
+			s = 1
 		}
+		return 2 * s, s
 	}
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：優先選擇能容納的奇數高正方形比例（cw = 2 * ch）
+		// 自動模式：在 1x (2×1) ~ 3x (6×3) 之間自動選擇視窗能容納的最大正方形比例
+		// 初級 (bh*3+chromeHeight <= 46) 優先保留完整上下標題與進度條版面；
+		// 中級/高級 (16列) 在 >=48 列全螢幕下自動啟用側欄緊湊版面以顯示 6×3 正中間數字格。
+		bh := m.board.Height()
+		bw := m.board.Width()
+		boxW3 := bw*6 + rowLabelWidth + 4
+		canAuto3 := (m.height >= bh*3+chromeHeight && m.width >= boxW3) ||
+			(bh*3+chromeHeight > 46 && m.canFit(6, 3))
 		switch {
-		case m.height >= bh*5+chromeHeight && m.width >= bw*10+rowLabelWidth+4:
+		case canAuto3:
 			targetScale = 3
-		case m.canFit(6, 3):
+		case m.canFit(4, 2):
 			targetScale = 2
 		default:
 			targetScale = 1
 		}
 	}
 
-	switch targetScale {
-	case 3:
-		if m.canFit(10, 5) {
-			return 10, 5
+	for s := clamp(targetScale, 1, 5); s >= 2; s-- {
+		if m.canFit(2*s, s) {
+			return 2 * s, s
 		}
-		if m.canFit(6, 3) {
-			return 6, 3
-		}
-		return 2, 1
-	case 2:
-		if m.canFit(6, 3) {
-			return 6, 3
-		}
-		return 2, 1
-	default: // 1x
-		return 2, 1
 	}
+	return 2, 1
 }
 
 func (m Model) canFit(cw, ch int) bool {
 	bw := m.board.Width()
 	bh := m.board.Height()
 	boxW := bw*cw + rowLabelWidth + 4
-	return m.height >= bh*ch+2 && m.width >= boxW
+	if ch <= 2 {
+		return m.height >= bh*ch+chromeHeight && m.width >= boxW
+	}
+	if m.height >= bh*ch+2 && m.width >= boxW {
+		return true
+	}
+	if m.height >= bh*ch && m.width >= boxW+sidePanelW {
+		return true
+	}
+	return false
 }
 
 func (m Model) sizeWarning() (string, bool) {
@@ -320,7 +318,7 @@ func (m Model) renderBoardBoxCompact(cw, ch int, embedFooter bool) string {
 		for sub := 0; sub < ch; sub++ {
 			var rowSb strings.Builder
 			rowSb.WriteString(vBar + " ")
-			if sub == ch/2 {
+			if sub == (ch-1)/2 {
 				st := labelStyle
 				if isCurRow {
 					st = labelActiveStyle
@@ -405,8 +403,8 @@ func (m Model) renderBoard(cw, ch int) string {
 		for sub := 0; sub < ch; sub++ {
 			sb.WriteByte('\n')
 
-			// 列號標籤：固定置於單元格垂直正中間行 (sub == ch/2)
-			if sub == ch/2 {
+			// 列號標籤：置於單元格垂直中間行 (sub == (ch-1)/2)
+			if sub == (ch-1)/2 {
 				st := labelStyle
 				if isCurRow {
 					st = labelActiveStyle
@@ -437,7 +435,7 @@ func colLabel(n, cw int, active bool) string {
 
 func (m Model) renderCellSubLine(r, c, cw, ch, sub int) string {
 	glyph, st := m.cellAppearance(r, c)
-	if sub == ch/2 {
+	if sub == (ch-1)/2 {
 		return st.Render(padCenter(glyph, cw))
 	}
 	return st.Render(strings.Repeat(" ", cw))

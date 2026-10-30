@@ -345,19 +345,25 @@ func (m Model) execCommand(line string) (tea.Model, tea.Cmd) {
 			m.resetZoom()
 		case "1", "1x":
 			m.scale = 1
-			m.setMsg(msgInfo, "畫面縮放設為 1x")
+			m.setMsg(msgInfo, "畫面縮放設為 1x (2×1 正方形格)")
 		case "2", "2x":
 			m.scale = 2
-			m.setMsg(msgInfo, "畫面縮放設為 2x")
+			m.setMsg(msgInfo, "畫面縮放設為 2x (4×2 正方形格)")
 		case "3", "3x":
 			m.scale = 3
-			m.setMsg(msgInfo, "畫面縮放設為 3x")
+			m.setMsg(msgInfo, "畫面縮放設為 3x (6×3 正方形格)")
+		case "4", "4x":
+			m.scale = 4
+			m.setMsg(msgInfo, "畫面縮放設為 4x (8×4 正方形格)")
+		case "5", "5x":
+			m.scale = 5
+			m.setMsg(msgInfo, "畫面縮放設為 5x (10×5 正方形格)")
 		case "+", "in":
 			m.zoomIn()
 		case "-", "out":
 			m.zoomOut()
 		default:
-			m.setMsg(msgError, "用法：:zoom [1|2|3|auto|+|-]")
+			m.setMsg(msgError, "用法：:zoom [1~5|auto|+|-]")
 		}
 		return m, nil
 	case "custom", "c":
@@ -453,19 +459,20 @@ func clamp(v, lo, hi int) int {
 
 func (m *Model) zoomIn() {
 	curr := m.currentScale()
-	if curr >= 3 {
-		m.setMsg(msgInfo, "已達最大縮放比例 (3x: 10×5)")
+	if curr >= 5 {
+		m.setMsg(msgInfo, "已達最大縮放比例 (5x: 10×5)")
 		return
 	}
 	next := curr + 1
 	if m.width > 0 && m.height > 0 {
-		wantW, wantH := 6, 3
-		if next == 3 {
-			wantW, wantH = 10, 5
-		}
+		wantW, wantH := 2*next, next
 		if !m.canFit(wantW, wantH) {
-			cw, ch := m.cellSize()
-			m.setMsg(msgInfo, fmt.Sprintf("目前視窗尺寸已達最大可用正方形比例 (%d×%d)", cw, ch))
+			needW := m.board.Width()*wantW + rowLabelWidth + 4
+			needH := m.board.Height()*wantH + 2
+			if m.width >= needW+sidePanelW {
+				needH = m.board.Height() * wantH
+			}
+			m.setMsg(msgInfo, fmt.Sprintf("放大至 %dx (%d×%d 格) 需 %d×%d 視窗（目前 %d×%d，可按 F11 全螢幕或 Ctrl+- 縮小字型）", next, wantW, wantH, needW, needH, m.width, m.height))
 			return
 		}
 	}
@@ -492,16 +499,6 @@ func (m *Model) resetZoom() {
 }
 
 func (m Model) currentScale() int {
-	if m.scale > 0 {
-		return m.scale
-	}
 	_, ch := m.cellSize()
-	switch {
-	case ch >= 5:
-		return 3
-	case ch >= 3:
-		return 2
-	default:
-		return 1
-	}
+	return ch
 }

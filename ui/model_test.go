@@ -228,20 +228,20 @@ func TestResponsiveWindowScaling(t *testing.T) {
 		t.Fatalf("at 80x24: cw=%d ch=%d, want 2x1", cw1, ch1)
 	}
 
-	// 拉大至 100x35：高度足夠容納 2x (6x3)
+	// 拉大至 100x35：高度容納 2x (4x2)
 	next, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 35})
 	m = next.(Model)
 	cw2, ch2 := m.cellSize()
-	if ch2 != 3 || cw2 != 6 {
-		t.Fatalf("at 100x35: cw=%d ch=%d, want 6x3", cw2, ch2)
+	if ch2 != 2 || cw2 != 4 {
+		t.Fatalf("at 100x35: cw=%d ch=%d, want 4x2", cw2, ch2)
 	}
 
-	// 超大視窗 140x60：高度與寬度皆足夠容納 3x (10x5)
-	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 60})
+	// 全螢幕 140x50：高度與寬度皆足夠容納 3x (6x3)
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 	m = next.(Model)
 	cw3, ch3 := m.cellSize()
-	if ch3 != 5 || cw3 != 10 {
-		t.Fatalf("at 140x60: cw=%d ch=%d, want 10x5", cw3, ch3)
+	if ch3 != 3 || cw3 != 6 {
+		t.Fatalf("at 140x50: cw=%d ch=%d, want 6x3", cw3, ch3)
 	}
 
 	// 縮小回 80x24：自動縮回 1x
@@ -301,19 +301,30 @@ func TestSquareCenteredCellProportions(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 196, Height: 50})
 	m = next.(Model)
 
-	// 驗證各 scale 單元格皆滿足視覺正方形 (cw == 2 * ch) 且高度為奇數 (ch % 2 == 1，確保數字在垂直正中央)
-	for scale := 1; scale <= 3; scale++ {
+	// 驗證 1x~5x 所有縮放層級皆滿足視覺正方形 (cw == 2 * ch)
+	for scale := 1; scale <= 5; scale++ {
 		m.scale = scale
 		cw, ch := m.cellSize()
 		if cw != 2*ch {
 			t.Fatalf("scale %d: cw=%d, ch=%d; expected square proportion cw == 2 * ch", scale, cw, ch)
 		}
-		if ch%2 != 1 {
-			t.Fatalf("scale %d: cw=%d, ch=%d; expected odd ch for vertical centering", scale, cw, ch)
+	}
+
+	// 驗證 46 列高的視窗 (196x46) 下，中級與高級會自動放大至 4x2 (2x) 而非停留在 2x1
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 196, Height: 46})
+	m = next.(Model)
+	for _, key := range []string{"medium", "hard"} {
+		m = typeCmd(t, m, "zoom auto")
+		m = typeCmd(t, m, key)
+		cw, ch := m.cellSize()
+		if cw != 4 || ch != 2 {
+			t.Fatalf("difficulty %s at 196x46: cw=%d ch=%d, want 4x2", key, cw, ch)
 		}
 	}
 
 	// 驗證全螢幕 (196x50) 下，簡單/中級/高級皆能啟用 6x3 正方形且垂直正中大格子
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 196, Height: 50})
+	m = next.(Model)
 	for _, key := range []string{"easy", "medium", "hard"} {
 		m = typeCmd(t, m, "zoom auto")
 		m = typeCmd(t, m, key)
