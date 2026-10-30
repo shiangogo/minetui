@@ -2,7 +2,7 @@
 # 自動偵測：本機有 go 則直接使用本地工具鏈（極速），沒有則自動退回使用 Docker 容器。
 # 亦可手動指定 USE_DOCKER=1 強制使用容器編譯。
 
-VERSION      ?= v0.2.1
+VERSION      ?= v0.2.2
 BINARY       ?= bin/minetui
 DIST_DIR     ?= dist
 GO_IMAGE     ?= golang:1.25-alpine
@@ -105,7 +105,7 @@ dist:
 		fi; \
 	done
 	@echo "    -> Generating checksums..."
-	@(cd $(DIST_DIR) && shasum -a 256 minetui_* > checksums.txt)
+	@(cd $(DIST_DIR) && (sha256sum minetui_* 2>/dev/null || shasum -a 256 minetui_*) > checksums.txt)
 	@echo "==> Distribution archives created in $(DIST_DIR)/:"
 	@ls -lh $(DIST_DIR)
 
