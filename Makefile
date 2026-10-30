@@ -2,7 +2,7 @@
 # 自動偵測：本機有 go 則直接使用本地工具鏈（極速），沒有則自動退回使用 Docker 容器。
 # 亦可手動指定 USE_DOCKER=1 強制使用容器編譯。
 
-VERSION      ?= v0.2.4
+VERSION      ?= v0.2.5
 BINARY       ?= bin/minetui
 DIST_DIR     ?= dist
 GO_IMAGE     ?= golang:1.25-alpine
