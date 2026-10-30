@@ -111,21 +111,6 @@ minetui -seed 42                            # 固定亂數種子（挑戰特定�
 
 ---
 
-## 🎥 如何產生漂亮的展示 GIF (Recording Demo)
-
-本專案附帶 [Charm VHS](https://github.com/charmbracelet/vhs) 腳本 `demo.tape`，可以全自動錄製高畫質、無滑鼠晃動的像素級動態圖：
-
-```sh
-# 1. 安裝 VHS（macOS）
-brew install vhs
-# 或使用 Go 安裝：go install github.com/charmbracelet/vhs@latest
-
-# 2. 錄製並自動輸出 assets/demo.gif
-vhs demo.tape
-```
-
----
-
 ## 🛠️ 開發與建置指令 (Development)
 
 ```sh
