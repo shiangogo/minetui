@@ -8,7 +8,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/andrewfei/minesweeper/game"
+	"github.com/shiangogo/minesweeper/game"
 )
 
 const (
