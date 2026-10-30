@@ -10,7 +10,7 @@ import (
 	"github.com/shiangogo/minetui/ui"
 )
 
-var version = "v0.2.3"
+var version = "v0.2.4"
 
 func main() {
 	var (
