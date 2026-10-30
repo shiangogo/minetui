@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.3] - 2026-10-30
+
+### Added
+
+- Makefile 智慧雙模支援：自動偵測本地是否有 Go 工具鏈
+  - 本地有 Go 則直接原生編譯與測試，大幅提升速度且免去拉取 Docker image 的等待
+  - 本地無 Go 則自動退回使用 `golang:1.25-alpine` Docker 容器執行
+  - 支援手動參數 `USE_DOCKER=1` 強制切換
+  - 新增 `make info` 指令查看當前 Go 環境狀態
+
 ## [0.1.2] - 2026-10-30
 
 ### Changed

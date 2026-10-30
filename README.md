@@ -13,18 +13,21 @@
 - **視窗自適應縮放**：隨視窗拉大，單元格與盤面會自動平滑放大（支援 1x/2x/3x 多行多欄單元格），亦支援 `+`/`-`/`z` 或 `:zoom` 手動縮放
 - 終端機太窄時自動切換成緊湊盤面
 
-## 開發環境（只需要 Docker）
+## 開發環境（智慧雙模支援）
 
-所有 Go 工具鏈都跑在 `golang:1.25-alpine` 容器裡，本機不需要安裝 Go。
-模組與編譯快取存在 Docker volume（`minesweeper-gomod`、`minesweeper-gobuild`）。
+`Makefile` 會**自動偵測本機環境**：
+- **本機有安裝 Go**：直接使用本地工具鏈進行原生編譯與測試，秒速完成。
+- **本機未安裝 Go**：自動退回使用 `golang:1.25-alpine` Docker 容器執行，不弄髒本機環境。
+- **手動切換**：任何指令均可加上 `USE_DOCKER=1` 強制使用 Docker 容器（例如 `make build USE_DOCKER=1`）。
 
 ```sh
-make build         # 交叉編譯出本機可執行檔 bin/minesweeper
+make info          # 查看目前使用的 Go 工具鏈（Local 或 Docker）
+make build         # 編譯出本機可執行檔 bin/minesweeper
 make run           # 編譯並執行
 make check         # go mod tidy + gofmt 檢查 + go vet + go test
-make test          # 只跑測試
+make test          # 執行測試
 make clean         # 刪除 bin/
-make clean-docker  # 刪除 Go 模組 / 編譯快取 volume
+make clean-docker  # 刪除 Docker 快取 volume（僅 Docker 模式使用）
 ```
 
 > 遊戲本身需要真正的 TTY，因此是在容器中編譯、在本機終端機執行。
