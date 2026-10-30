@@ -79,6 +79,9 @@ type Model struct {
 	elapsed  time.Duration
 	progress progress.Model
 
+	// 畫面縮放倍率：0 為自動，1 為 1x，2 為 2x，3 為 3x
+	scale int
+
 	showHelp bool
 }
 
