@@ -43,19 +43,6 @@ var (
 		colSubtext,
 	}
 
-	// numberGlyphs 使用全形數字 (width=2)，在終端機中可精準置中於偶數欄寬的單元格內
-	numberGlyphs = [9]string{
-		"", // 0（不會顯示）
-		"１",
-		"２",
-		"３",
-		"４",
-		"５",
-		"６",
-		"７",
-		"８",
-	}
-
 	cursorBg = colPink
 	cursorFg = colBase
 )

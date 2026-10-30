@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -221,7 +220,7 @@ func TestMenuCustomFlow(t *testing.T) {
 func TestResponsiveWindowScaling(t *testing.T) {
 	m := newEasy(t) // 9x9 board
 
-	// 80x24 標準小終端機：高度僅容納 1x (2x1)
+	// 80x24 標準小終端機：高度僅容納 1x
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = next.(Model)
 	cw1, ch1 := m.cellSize()
@@ -229,20 +228,20 @@ func TestResponsiveWindowScaling(t *testing.T) {
 		t.Fatalf("at 80x24: ch = %d, want 1", ch1)
 	}
 
-	// 拉大至 100x45：高度足夠容納 2x (6x3)，格子自動放大且保持奇數行置中！
-	next, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 45})
+	// 拉大至 100x35：高度足夠容納 2x，格子自動變大！
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 35})
 	m = next.(Model)
 	cw2, ch2 := m.cellSize()
-	if ch2 != 3 || cw2 < cw1 {
-		t.Fatalf("at 100x45: cw=%d ch=%d, expected ch=3 and cw >= %d", cw2, ch2, cw1)
+	if ch2 != 2 || cw2 < cw1 {
+		t.Fatalf("at 100x35: cw=%d ch=%d, expected ch=2 and cw >= %d", cw2, ch2, cw1)
 	}
 
-	// 全螢幕 140x65：高度足夠容納 3x (10x5)，格子進一步放大！
-	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 65})
+	// 全螢幕 140x50：高度足夠容納 3x，格子進一步放大！
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 	m = next.(Model)
 	cw3, ch3 := m.cellSize()
-	if ch3 != 5 || cw3 < cw2 {
-		t.Fatalf("at 140x65: cw=%d ch=%d, expected ch=5 and cw >= %d", cw3, ch3, cw2)
+	if ch3 != 3 || cw3 < cw2 {
+		t.Fatalf("at 140x50: cw=%d ch=%d, expected ch=3 and cw >= %d", cw3, ch3, cw2)
 	}
 
 	// 縮小回 80x24：自動縮回 1x
@@ -256,7 +255,7 @@ func TestResponsiveWindowScaling(t *testing.T) {
 
 func TestManualZoomKeysAndCommands(t *testing.T) {
 	m := newEasy(t)
-	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 65})
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
 	m = next.(Model)
 
 	// 預設為 auto (0)
@@ -294,75 +293,5 @@ func TestManualZoomKeysAndCommands(t *testing.T) {
 	m = typeCmd(t, m, "zoom auto")
 	if m.scale != 0 {
 		t.Fatalf(":zoom auto -> scale = %d, want 0", m.scale)
-	}
-}
-
-func TestSquareCellsAndCenteredNumbers(t *testing.T) {
-	m := newEasy(t)
-
-	// 驗證各 scale 單元格皆為正方形比例（cw == 2 * ch）且高為奇數以確保垂直置中
-	for scale := 1; scale <= 3; scale++ {
-		m.scale = scale
-		cw, ch := m.cellSize()
-		if cw != 2*ch {
-			t.Fatalf("scale %d: cw=%d, ch=%d; expected square proportion cw == 2 * ch", scale, cw, ch)
-		}
-		if ch%2 == 0 {
-			t.Fatalf("scale %d: ch=%d; expected odd height for symmetric vertical centering", scale, ch)
-		}
-	}
-
-	// 驗證 padCenter 配合全形數字可精準對稱置中
-	tests := []struct {
-		cw   int
-		want string
-	}{
-		{2, "１"},
-		{6, "  １  "},
-		{10, "    １    "},
-	}
-	for _, tc := range tests {
-		got := padCenter("１", tc.cw)
-		if got != tc.want {
-			t.Fatalf("padCenter('１', %d) = %q, want %q", tc.cw, got, tc.want)
-		}
-	}
-
-	// 驗證翻開帶有數字的格子時，在各 scale 下皆呈現對應全形置中字元，且垂直置於正中央行 (sub == ch/2)
-	for testScale := 1; testScale <= 3; testScale++ {
-		m = newEasy(t)
-		m.scale = testScale
-		cw, ch := m.cellSize()
-		m = press(t, m, " ") // 第一步保證開出安全區
-		foundNumber := false
-		for r := 0; r < m.board.Height(); r++ {
-			for c := 0; c < m.board.Width(); c++ {
-				cell := m.board.Cell(r, c)
-				if cell.State == game.Revealed && cell.Adjacent > 0 {
-					glyph, _ := m.cellAppearance(r, c)
-					expected := numberGlyphs[cell.Adjacent]
-					if glyph != expected {
-						t.Fatalf("scale %d: cell (%d,%d) glyph = %q, want %q", testScale, r, c, glyph, expected)
-					}
-					// 驗證只有中心行 (sub == ch/2) 含有 glyph，上下 padding 行皆為純空格
-					for sub := 0; sub < ch; sub++ {
-						subLine := m.renderCellSubLine(r, c, cw, ch, sub)
-						if sub == ch/2 {
-							if !strings.Contains(subLine, expected) {
-								t.Fatalf("scale %d: sub=%d (center) should contain %q, got %q", testScale, sub, expected, subLine)
-							}
-						} else {
-							if strings.Contains(subLine, expected) {
-								t.Fatalf("scale %d: sub=%d (padding) should not contain %q, got %q", testScale, sub, expected, subLine)
-							}
-						}
-					}
-					foundNumber = true
-				}
-			}
-		}
-		if !foundNumber {
-			t.Fatalf("scale %d: expected at least one numbered cell revealed", testScale)
-		}
 	}
 }

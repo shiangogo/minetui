@@ -52,19 +52,16 @@ func (m Model) viewGame() string {
 }
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
-// 終端機字元寬高比約為 1:2，故維持 cw = 2 * ch 以確保格子視覺上為正方形。
-// 單元格高度必須為奇數（1x: 2×1, 2x: 6×3, 3x: 10×5），使數字 glyph 具備唯一且對稱的中心行（sub == ch/2），
-// 徹底避免偶數行高造成文字偏向頂部或底部。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
-		return 2, 1
+		return 3, 1
 	}
 
 	bw := m.board.Width()
 	bh := m.board.Height()
 
 	if m.width <= 0 || m.height <= 0 {
-		return 2, 1
+		return 3, 1
 	}
 
 	availH := m.height - chromeHeight - 1
@@ -72,11 +69,11 @@ func (m Model) cellSize() (cw, ch int) {
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：依視窗空間由大到小選擇最合適的比例（奇數行高，確保正方形且文字完美垂直置中）
+		// 自動模式：依視窗空間由大到小選擇最合適的比例
 		switch {
-		case availH >= bh*5 && availW >= bw*10:
+		case availH >= bh*3 && availW >= bw*7:
 			targetScale = 3
-		case availH >= bh*3 && availW >= bw*6:
+		case availH >= bh*2 && availW >= bw*4:
 			targetScale = 2
 		default:
 			targetScale = 1
@@ -85,12 +82,40 @@ func (m Model) cellSize() (cw, ch int) {
 
 	switch targetScale {
 	case 3:
-		return 10, 5
+		ch = 3
+		switch {
+		case availW >= bw*8:
+			cw = 8
+		case availW >= bw*7:
+			cw = 7
+		default:
+			cw = 6
+		}
 	case 2:
-		return 6, 3
+		ch = 2
+		switch {
+		case availW >= bw*6:
+			cw = 6
+		case availW >= bw*5:
+			cw = 5
+		default:
+			cw = 4
+		}
 	default: // 1x
-		return 2, 1
+		ch = 1
+		switch {
+		case availW >= bw*5:
+			cw = 5
+		case availW >= bw*4:
+			cw = 4
+		case availW >= bw*3:
+			cw = 3
+		default:
+			cw = 2
+		}
 	}
+
+	return cw, ch
 }
 
 func (m Model) sizeWarning() (string, bool) {
@@ -184,8 +209,8 @@ func (m Model) renderBoard(cw, ch int) string {
 		for sub := 0; sub < ch; sub++ {
 			sb.WriteByte('\n')
 
-			// 列號標籤置於單元格正中間行
-			if sub == ch/2 {
+			// 列號標籤：1x 與 2x 在首行，3x 在中間行
+			if (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1) {
 				st := labelStyle
 				if isCurRow {
 					st = labelActiveStyle
@@ -216,7 +241,7 @@ func colLabel(n, cw int, active bool) string {
 
 func (m Model) renderCellSubLine(r, c, cw, ch, sub int) string {
 	glyph, st := m.cellAppearance(r, c)
-	hasGlyph := (sub == ch/2)
+	hasGlyph := (ch == 1 && sub == 0) || (ch == 2 && sub == 0) || (ch == 3 && sub == 1)
 	if hasGlyph {
 		return st.Render(padCenter(glyph, cw))
 	}
@@ -240,7 +265,7 @@ func (m Model) cellAppearance(r, c int) (string, lipgloss.Style) {
 	case cell.State == game.Revealed:
 		st = st.Background(revealedBg[parity])
 		if cell.Adjacent > 0 {
-			glyph = numberGlyphs[cell.Adjacent]
+			glyph = fmt.Sprint(cell.Adjacent)
 			st = st.Foreground(numberColors[cell.Adjacent]).Bold(true)
 		}
 
