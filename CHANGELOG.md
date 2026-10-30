@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1] - 2026-10-30
+
+### Added
+
+- 加入 GitHub Actions 自動化發布工作流程 (`.github/workflows/release.yml`)
+- `Makefile` 新增 `make dist` 跨平台發布目標，支援一鍵編譯 macOS (ARM64/Intel)、Linux (x86_64/ARM64)、Windows 發布包與 SHA-256 校驗檔
+- `minetui` 新增 `-v` / `-version` 命令列參數
+- 納入正式遊玩動態預覽圖 `assets/demo.gif`
+
 ## [0.2.0] - 2026-10-30
 
 ### Changed
