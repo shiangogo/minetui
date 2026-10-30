@@ -216,3 +216,82 @@ func TestMenuCustomFlow(t *testing.T) {
 		t.Fatalf("custom game not started: screen=%v err=%q", m.screen, m.menuErr)
 	}
 }
+
+func TestResponsiveWindowScaling(t *testing.T) {
+	m := newEasy(t) // 9x9 board
+
+	// 80x24 標準小終端機：高度僅容納 1x
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = next.(Model)
+	cw1, ch1 := m.cellSize()
+	if ch1 != 1 {
+		t.Fatalf("at 80x24: ch = %d, want 1", ch1)
+	}
+
+	// 拉大至 100x35：高度足夠容納 2x，格子自動變大！
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 35})
+	m = next.(Model)
+	cw2, ch2 := m.cellSize()
+	if ch2 != 2 || cw2 < cw1 {
+		t.Fatalf("at 100x35: cw=%d ch=%d, expected ch=2 and cw >= %d", cw2, ch2, cw1)
+	}
+
+	// 全螢幕 140x50：高度足夠容納 3x，格子進一步放大！
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+	m = next.(Model)
+	cw3, ch3 := m.cellSize()
+	if ch3 != 3 || cw3 < cw2 {
+		t.Fatalf("at 140x50: cw=%d ch=%d, expected ch=3 and cw >= %d", cw3, ch3, cw2)
+	}
+
+	// 縮小回 80x24：自動縮回 1x
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	m = next.(Model)
+	_, chBack := m.cellSize()
+	if chBack != 1 {
+		t.Fatalf("back at 80x24: ch = %d, want 1", chBack)
+	}
+}
+
+func TestManualZoomKeysAndCommands(t *testing.T) {
+	m := newEasy(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+	m = next.(Model)
+
+	// 預設為 auto (0)
+	if m.scale != 0 {
+		t.Fatalf("initial scale = %d, want 0", m.scale)
+	}
+
+	// 指令設定 :zoom 1
+	m = typeCmd(t, m, "zoom 1")
+	if m.scale != 1 {
+		t.Fatalf(":zoom 1 -> scale = %d, want 1", m.scale)
+	}
+	_, ch := m.cellSize()
+	if ch != 1 {
+		t.Fatalf("forced 1x: ch = %d, want 1", ch)
+	}
+
+	// 按 + 放大
+	m = press(t, m, "+")
+	if m.scale != 2 {
+		t.Fatalf("+ pressed -> scale = %d, want 2", m.scale)
+	}
+
+	// 按 z 重設為自動
+	m = press(t, m, "z")
+	if m.scale != 0 {
+		t.Fatalf("z pressed -> scale = %d, want 0", m.scale)
+	}
+
+	// 指令 :zoom auto
+	m = typeCmd(t, m, "zoom 3")
+	if m.scale != 3 {
+		t.Fatalf(":zoom 3 -> scale = %d", m.scale)
+	}
+	m = typeCmd(t, m, "zoom auto")
+	if m.scale != 0 {
+		t.Fatalf(":zoom auto -> scale = %d, want 0", m.scale)
+	}
+}
