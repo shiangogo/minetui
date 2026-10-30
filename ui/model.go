@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/andrewfei/minesweeper/game"
+	"github.com/shiangogo/minesweeper/game"
 )
 
 type screen int

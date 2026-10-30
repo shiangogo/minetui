@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2] - 2026-10-30
+
+### Changed
+
+- 更新 Go module 路徑為 `github.com/shiangogo/minesweeper`
+- 更新專案 Git author / committer 身分為 `shiangogo`
+
 ## [0.1.1] - 2026-10-30
 
 ### Added

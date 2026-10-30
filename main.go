@@ -7,7 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/andrewfei/minesweeper/ui"
+	"github.com/shiangogo/minesweeper/ui"
 )
 
 func main() {
