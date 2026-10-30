@@ -29,10 +29,10 @@ func (m Model) viewGame() string {
 	cw, ch := m.cellSize()
 	bh := m.board.Height()
 
-	// 當啟用 3 行高單元格（確保數字垂直正中），但視窗高度不足以同時堆疊完整上下資訊列時，
-	// 自動切換為寬螢幕「左側資訊欄 + 右側緊湊棋盤」或上下極簡版面，讓 50 行高的全螢幕也能容納 16 列高的中級/高級大格子。
-	if !m.showHelp && m.height > 0 && m.height < bh*ch+chromeHeight && ch == 3 {
-		box := m.renderBoardBoxCompact(cw, ch)
+	// 當啟用多行高單元格（ch >= 3，確保數字垂直正中），但視窗高度不足以同時堆疊完整上下資訊列時，
+	// 自動切換為寬螢幕「左側資訊欄 + 右側緊湊棋盤」或嵌入式上下邊框版面，讓 50 行高的全螢幕也能容納中級/高級正方形大格子。
+	if !m.showHelp && m.height > 0 && m.height < bh*ch+chromeHeight && ch >= 3 {
+		box := m.renderBoardBoxCompact(cw, ch, false)
 		boxW := lipgloss.Width(box)
 		if m.width >= boxW+sidePanelW {
 			side := m.renderSidePanel(sidePanelW - 2)
@@ -48,7 +48,7 @@ func (m Model) viewGame() string {
 			}
 			return m.place(lipgloss.JoinVertical(lipgloss.Left, top, box, bottom))
 		}
-		return m.place(box)
+		return m.place(m.renderBoardBoxCompact(cw, ch, true))
 	}
 
 	var inner string
@@ -77,26 +77,35 @@ func (m Model) viewGame() string {
 }
 
 // cellSize 依終端機視窗尺寸與棋盤大小，自適應計算單元格寬度 (cw) 與高度 (ch)。
-// 為確保半形數字 (寬 1、高 1) 永遠在格子正中間（上下左右皆對稱留白），
-// 單元格採用「奇數寬 × 奇數高」的視覺正方形比例：1x (3×1)、2x (5×3)、3x (7×3)。
+// 終端機字元寬高比約為 1:2，因此單元格必須滿足 cw = 2 * ch 才是視覺正方形；
+// 同時為確保數字永遠在垂直正中央（上下對稱留白），高度 ch 必須為奇數 (1, 3, 5)：
+// 1x = 2×1、2x = 6×3、3x = 10×5。
 func (m Model) cellSize() (cw, ch int) {
 	if m.board == nil {
-		return 3, 1
+		return 2, 1
 	}
 
 	bw := m.board.Width()
+	bh := m.board.Height()
 
 	if m.width <= 0 || m.height <= 0 {
-		return 3, 1
+		switch m.scale {
+		case 3:
+			return 10, 5
+		case 2:
+			return 6, 3
+		default:
+			return 2, 1
+		}
 	}
 
 	targetScale := m.scale
 	if targetScale <= 0 {
-		// 自動模式：依視窗空間由大到小選擇最合適的奇數正方形比例
+		// 自動模式：優先選擇能容納的奇數高正方形比例（cw = 2 * ch）
 		switch {
-		case m.canFit(7, 3):
+		case m.height >= bh*5+chromeHeight && m.width >= bw*10+rowLabelWidth+4:
 			targetScale = 3
-		case m.canFit(5, 3):
+		case m.canFit(6, 3):
 			targetScale = 2
 		default:
 			targetScale = 1
@@ -105,14 +114,20 @@ func (m Model) cellSize() (cw, ch int) {
 
 	switch targetScale {
 	case 3:
-		return 7, 3
-	case 2:
-		return 5, 3
-	default: // 1x
-		if m.width < bw*3+rowLabelWidth+4 {
-			return 2, 1
+		if m.canFit(10, 5) {
+			return 10, 5
 		}
-		return 3, 1
+		if m.canFit(6, 3) {
+			return 6, 3
+		}
+		return 2, 1
+	case 2:
+		if m.canFit(6, 3) {
+			return 6, 3
+		}
+		return 2, 1
+	default: // 1x
+		return 2, 1
 	}
 }
 
@@ -120,16 +135,7 @@ func (m Model) canFit(cw, ch int) bool {
 	bw := m.board.Width()
 	bh := m.board.Height()
 	boxW := bw*cw + rowLabelWidth + 4
-	if m.height >= bh*ch+chromeHeight && m.width >= boxW {
-		return true
-	}
-	if m.height >= bh*ch+4 && m.width >= boxW {
-		return true
-	}
-	if m.height >= bh*ch+2 && m.width >= boxW+sidePanelW {
-		return true
-	}
-	return false
+	return m.height >= bh*ch+2 && m.width >= boxW
 }
 
 func (m Model) sizeWarning() (string, bool) {
@@ -253,12 +259,13 @@ func (m Model) renderSidePanel(w int) string {
 }
 
 // renderBoardBoxCompact 繪製高度緊湊的棋盤外框，將欄號直接嵌入上邊框（使 16×3=48 行的棋盤加框後僅佔 50 行）。
-func (m Model) renderBoardBoxCompact(cw, ch int) string {
+// 當 embedFooter 為 true 時（如全螢幕高級 30×16 在 6×3 模式下），亦將地雷、計時與狀態列嵌入下邊框。
+func (m Model) renderBoardBoxCompact(cw, ch int, embedFooter bool) string {
 	b := m.board
 	bw := b.Width()
 	bh := b.Height()
 
-	if m.height >= bh*ch+3 {
+	if !embedFooter && m.height >= bh*ch+3 {
 		return boardBoxStyle.BorderForeground(m.accentColor()).Render(m.renderBoard(cw, ch))
 	}
 
@@ -332,10 +339,48 @@ func (m Model) renderBoardBoxCompact(cw, ch int) string {
 
 	if m.height >= bh*ch+2 {
 		innerW := 1 + rowLabelWidth + bw*cw + 1
-		lines = append(lines, bStyle.Render("╰"+strings.Repeat("─", innerW)+"╯"))
+		if embedFooter {
+			lines = append(lines, m.renderEmbeddedFooterBorder(innerW, cw, ch, bStyle))
+		} else {
+			lines = append(lines, bStyle.Render("╰"+strings.Repeat("─", innerW)+"╯"))
+		}
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderEmbeddedFooterBorder(innerW, cw, ch int, bStyle lipgloss.Style) string {
+	b := m.board
+	var leftToken string
+	switch {
+	case m.mode == modeCommand:
+		leftToken = " " + modeCommandStyle.Render("COMMAND") + " " + infoStyle.Render(":"+m.cmdBuf) + cmdCursor.Render(" ") + " "
+	case m.msg != "":
+		st := infoStyle
+		switch m.msgStyle {
+		case msgError:
+			st = errorStyle
+		case msgSuccess:
+			st = successStyle
+		}
+		leftToken = " " + st.Render(m.msg) + " "
+	default:
+		mines := chip("⚑ 地雷", fmt.Sprintf("%3d", b.RemainingMines()), colRed)
+		timer := chip("時間", formatDuration(m.elapsedTime()), colBlue)
+		leftToken = " " + mines + "  " + timer + " "
+	}
+
+	rightToken := " " + modeNormalStyle.Render("NORMAL") +
+		subtitleStyle.Render(fmt.Sprintf(" %s %d×%d ", m.diff.Name, cw, ch)) +
+		posStyle.Render(fmt.Sprintf("列 %02d 行 %02d", m.cur.Row+1, m.cur.Col+1)) + " "
+
+	leftW := lipgloss.Width(leftToken)
+	rightW := lipgloss.Width(rightToken)
+	dashes := innerW - 2 - leftW - rightW
+	if dashes < 1 {
+		return bStyle.Render("╰" + strings.Repeat("─", innerW) + "╯")
+	}
+	return bStyle.Render("╰─") + leftToken + bStyle.Render(strings.Repeat("─", dashes)) + rightToken + bStyle.Render("─╯")
 }
 
 // renderBoard 繪製含座標標籤的棋盤，支援多行多欄自適應單元格。

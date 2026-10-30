@@ -454,21 +454,35 @@ func clamp(v, lo, hi int) int {
 func (m *Model) zoomIn() {
 	curr := m.currentScale()
 	if curr >= 3 {
-		m.setMsg(msgInfo, "已達最大縮放比例 (3x)")
+		m.setMsg(msgInfo, "已達最大縮放比例 (3x: 10×5)")
 		return
 	}
-	m.scale = curr + 1
-	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（按 - 縮小、z 重設為自動）", m.scale))
+	next := curr + 1
+	if m.width > 0 && m.height > 0 {
+		wantW, wantH := 6, 3
+		if next == 3 {
+			wantW, wantH = 10, 5
+		}
+		if !m.canFit(wantW, wantH) {
+			cw, ch := m.cellSize()
+			m.setMsg(msgInfo, fmt.Sprintf("目前視窗尺寸已達最大可用正方形比例 (%d×%d)", cw, ch))
+			return
+		}
+	}
+	m.scale = next
+	cw, ch := m.cellSize()
+	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（%d×%d 格，按 - 縮小、z 重設為自動）", m.scale, cw, ch))
 }
 
 func (m *Model) zoomOut() {
 	curr := m.currentScale()
 	if curr <= 1 {
-		m.setMsg(msgInfo, "已達最小縮放比例 (1x)")
+		m.setMsg(msgInfo, "已達最小縮放比例 (1x: 2×1)")
 		return
 	}
 	m.scale = curr - 1
-	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（按 + 放大、z 重設為自動）", m.scale))
+	cw, ch := m.cellSize()
+	m.setMsg(msgInfo, fmt.Sprintf("畫面縮放：%dx（%d×%d 格，按 + 放大、z 重設為自動）", m.scale, cw, ch))
 }
 
 func (m *Model) resetZoom() {
@@ -481,9 +495,9 @@ func (m Model) currentScale() int {
 	if m.scale > 0 {
 		return m.scale
 	}
-	cw, ch := m.cellSize()
+	_, ch := m.cellSize()
 	switch {
-	case ch >= 3 && cw >= 7:
+	case ch >= 5:
 		return 3
 	case ch >= 3:
 		return 2

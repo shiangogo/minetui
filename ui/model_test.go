@@ -220,28 +220,28 @@ func TestMenuCustomFlow(t *testing.T) {
 func TestResponsiveWindowScaling(t *testing.T) {
 	m := newEasy(t) // 9x9 board
 
-	// 80x24 標準小終端機：高度僅容納 1x (3x1)
+	// 80x24 標準小終端機：高度僅容納 1x (2x1)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 	m = next.(Model)
 	cw1, ch1 := m.cellSize()
-	if ch1 != 1 || cw1 != 3 {
-		t.Fatalf("at 80x24: cw=%d ch=%d, want 3x1", cw1, ch1)
+	if ch1 != 1 || cw1 != 2 {
+		t.Fatalf("at 80x24: cw=%d ch=%d, want 2x1", cw1, ch1)
 	}
 
-	// 拉大至 65x35：高度足夠容納 3 行高，寬度容納 2x (5x3)
-	next, _ = m.Update(tea.WindowSizeMsg{Width: 65, Height: 35})
+	// 拉大至 100x35：高度足夠容納 2x (6x3)
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 35})
 	m = next.(Model)
 	cw2, ch2 := m.cellSize()
-	if ch2 != 3 || cw2 != 5 {
-		t.Fatalf("at 65x35: cw=%d ch=%d, want 5x3", cw2, ch2)
+	if ch2 != 3 || cw2 != 6 {
+		t.Fatalf("at 100x35: cw=%d ch=%d, want 6x3", cw2, ch2)
 	}
 
-	// 全螢幕 140x50：高度與寬度皆足夠容納 3x (7x3)
-	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 50})
+	// 超大視窗 140x60：高度與寬度皆足夠容納 3x (10x5)
+	next, _ = m.Update(tea.WindowSizeMsg{Width: 140, Height: 60})
 	m = next.(Model)
 	cw3, ch3 := m.cellSize()
-	if ch3 != 3 || cw3 != 7 {
-		t.Fatalf("at 140x50: cw=%d ch=%d, want 7x3", cw3, ch3)
+	if ch3 != 5 || cw3 != 10 {
+		t.Fatalf("at 140x60: cw=%d ch=%d, want 10x5", cw3, ch3)
 	}
 
 	// 縮小回 80x24：自動縮回 1x
@@ -301,28 +301,25 @@ func TestSquareCenteredCellProportions(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 196, Height: 50})
 	m = next.(Model)
 
-	// 驗證各 scale 單元格皆為奇數寬 × 奇數高，確保半形數字 (寬 1、高 1) 上下左右皆嚴格置中
+	// 驗證各 scale 單元格皆滿足視覺正方形 (cw == 2 * ch) 且高度為奇數 (ch % 2 == 1，確保數字在垂直正中央)
 	for scale := 1; scale <= 3; scale++ {
 		m.scale = scale
 		cw, ch := m.cellSize()
-		if cw%2 != 1 || ch%2 != 1 {
-			t.Fatalf("scale %d: cw=%d, ch=%d; expected odd cw and odd ch for exact centering", scale, cw, ch)
+		if cw != 2*ch {
+			t.Fatalf("scale %d: cw=%d, ch=%d; expected square proportion cw == 2 * ch", scale, cw, ch)
 		}
-		padded := padCenter("1", cw)
-		leftSpaces := (cw - 1) / 2
-		rightSpaces := cw - 1 - leftSpaces
-		if leftSpaces != rightSpaces || len(padded) != cw {
-			t.Fatalf("scale %d: padCenter(\"1\", %d) = %q, asymmetric spaces (%d vs %d)", scale, cw, padded, leftSpaces, rightSpaces)
+		if ch%2 != 1 {
+			t.Fatalf("scale %d: cw=%d, ch=%d; expected odd ch for vertical centering", scale, cw, ch)
 		}
 	}
 
-	// 驗證全螢幕 (196x50) 下，簡單/中級/高級皆能啟用 ch=3 垂直正中大格子且正常繪製
+	// 驗證全螢幕 (196x50) 下，簡單/中級/高級皆能啟用 6x3 正方形且垂直正中大格子
 	for _, key := range []string{"easy", "medium", "hard"} {
 		m = typeCmd(t, m, "zoom auto")
 		m = typeCmd(t, m, key)
 		cw, ch := m.cellSize()
-		if ch != 3 || cw%2 != 1 {
-			t.Fatalf("difficulty %s at 196x50: cw=%d ch=%d, want odd cw and ch=3", key, cw, ch)
+		if cw != 6 || ch != 3 {
+			t.Fatalf("difficulty %s at 196x50: cw=%d ch=%d, want 6x3", key, cw, ch)
 		}
 		if v := m.View(); v == "" {
 			t.Fatalf("difficulty %s at 196x50 rendered empty view", key)

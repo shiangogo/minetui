@@ -48,9 +48,11 @@ Sleep 600ms
 Enter
 Sleep 800ms
 
-# 示範畫面縮放 (- / + / z)
-Type "-"
+# 示範畫面縮放 (+ / - / z：皆維持 2:1 正方形且奇數高度垂直置中)
+Type "+"
 Sleep 1s
+Type "-"
+Sleep 800ms
 Type "-"
 Sleep 1s
 Type "z"
